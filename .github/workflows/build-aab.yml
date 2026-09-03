@@ -1,0 +1,58 @@
+name: Build TaskFlow AAB
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Find TaskFlow ZIP
+        run: |
+          ZIP=$(find . -maxdepth 1 -type f -name 'TaskFlow-Android-AAB*.zip' | head -n 1)
+
+          if [ -z "$ZIP" ]; then
+            echo "TaskFlow Android ZIP not found"
+            exit 1
+          fi
+
+          echo "Found: $ZIP"
+          mkdir project
+          unzip -q "$ZIP" -d project
+
+      - name: Build AAB
+        working-directory: project
+        run: |
+          gradle :app:bundleDebug --no-daemon
+
+      - name: Upload AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskflow-debug-aab
+          path: project/app/build/outputs/bundle/debug/app-debug.aab
