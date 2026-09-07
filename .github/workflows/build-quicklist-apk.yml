@@ -33,12 +33,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Find QuickList Android ZIP
+      - name: Find and extract QuickList project
         run: |
           ZIP=$(find . -maxdepth 1 -type f -iname 'QuickList*.zip' | head -n 1)
 
           if [ -z "$ZIP" ]; then
-            echo "QuickList Android ZIP not found"
+            echo "QuickList ZIP not found"
             ls -la
             exit 1
           fi
@@ -49,14 +49,32 @@ jobs:
           mkdir project
           unzip -q "$ZIP" -d project
 
+          echo "Searching for Gradle project..."
+
+          SETTINGS=$(find project -type f \( \
+            -name "settings.gradle" -o \
+            -name "settings.gradle.kts" \
+          \) | head -n 1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "Gradle project not found inside ZIP"
+            find project -maxdepth 4 -type f | head -n 100
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
+
+          echo "Gradle project found at: $PROJECT_DIR"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
       - name: Build APK
-        working-directory: project
         run: |
+          cd "$PROJECT_DIR"
           gradle :app:assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: quicklist-release-apk
-          path: project/app/build/outputs/apk/release/*.apk
+          path: project/**/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
